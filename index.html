@@ -1,63 +1,669 @@
-// استبدل دالة startCamera بهذا الكود
-async function startCamera(facingMode = 'environment') {
-    if (!model) {
-        alert('الرجاء الانتظار حتى يتم تحميل النموذج');
-        return;
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>كاشف سرعات السيارات والاشياء</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0f2a, #0a1a3a);
+            min-height: 100vh;
+            padding: 15px;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .header h1 {
+            color: #00b4d8;
+            font-size: 1.5rem;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            background: rgba(0,0,0,0.6);
+            border-radius: 12px;
+            padding: 8px 12px;
+            text-align: center;
+            flex: 1;
+            min-width: 70px;
+            border: 1px solid #00b4d8;
+        }
+
+        .stat-number {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #00e5ff;
+        }
+
+        .stat-label {
+            font-size: 0.65rem;
+            color: #ccd6f6;
+        }
+
+        .video-container {
+            position: relative;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            touch-action: pinch-zoom;
+        }
+
+        video, canvas {
+            width: 100%;
+            border-radius: 20px;
+            display: block;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* أدوات التحكم */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #00b4d8, #0077b6);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: bold;
+            flex: 1;
+            min-width: 80px;
+        }
+
+        button:active {
+            transform: scale(0.97);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            transform: none;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff3b30, #d32f2f);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #00c853, #00e676);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #ff6d00, #ffab40);
+        }
+
+        /* شريط التكبير */
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            background: rgba(0,0,0,0.6);
+            padding: 10px;
+            border-radius: 50px;
+            margin-bottom: 15px;
+        }
+
+        .zoom-btn {
+            background: rgba(0,180,216,0.3);
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: 1px solid #00b4d8;
+            transition: all 0.2s;
+        }
+
+        .zoom-btn:active {
+            background: #00b4d8;
+        }
+
+        .zoom-level {
+            color: #00e5ff;
+            font-size: 1rem;
+            font-weight: bold;
+        }
+
+        /* قائمة الاكتشافات */
+        .detection-list {
+            background: rgba(0,0,0,0.5);
+            border-radius: 15px;
+            padding: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .detection-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .detection-class {
+            color: #00e5ff;
+        }
+
+        .detection-confidence {
+            color: #00c853;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 15px;
+            color: #00b4d8;
+        }
+
+        /* إشعارات منبثقة */
+        .toast {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.85);
+            color: #00e5ff;
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            z-index: 1000;
+            animation: fadeOut 2s ease forwards;
+        }
+
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            70% { opacity: 1; }
+            100% { opacity: 0; visibility: hidden; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>🚗 كاشف المركبات</h1>
+    </div>
+
+    <div class="stats">
+        <div class="stat-card"><div class="stat-number" id="carCount">0</div><div class="stat-label">🚗 سيارات</div></div>
+        <div class="stat-card"><div class="stat-number" id="truckCount">0</div><div class="stat-label">🚛 شاحنات</div></div>
+        <div class="stat-card"><div class="stat-number" id="totalCount">0</div><div class="stat-label">📦 الإجمالي</div></div>
+        <div class="stat-card"><div class="stat-number" id="fpsCount">0</div><div class="stat-label">⚡ FPS</div></div>
+    </div>
+
+    <div class="video-container">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <!-- شريط التكبير -->
+    <div class="zoom-controls">
+        <div class="zoom-btn" id="zoomOutBtn">−</div>
+        <span class="zoom-level" id="zoomLevel">1.0x</span>
+        <div class="zoom-btn" id="zoomInBtn">+</div>
+    </div>
+
+    <div class="controls">
+        <button id="startRearCam" class="btn-success">📷 خلفية</button>
+        <button id="startFrontCam" class="btn-primary">🤳 أمامية</button>
+        <button id="uploadVideo" class="btn-warning">🎥 رفع فيديو</button>
+        <button id="stopDetection" class="btn-danger" disabled>⏹️ إيقاف</button>
+        <input type="file" id="videoInput" accept="video/mp4,video/webm" style="display: none;">
+    </div>
+
+    <div class="detection-list" id="detectionList">
+        <div class="loading">⏳ جاري تحميل النموذج...</div>
+    </div>
+</div>
+
+<!-- TensorFlow.js -->
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
+<script>
+    // ==========================================
+    // الإعدادات
+    // ==========================================
+    const SETTINGS = {
+        videoWidth: 480,
+        videoHeight: 360,
+        targetFPS: 20,
+        frameSkip: 1  // 0 = كل الإطارات، 1 = نصف الإطارات
+    };
+
+    // المتغيرات العامة
+    let model = null;
+    let currentStream = null;
+    let videoElement = document.getElementById('video');
+    let canvas = document.getElementById('canvas');
+    let ctx = canvas.getContext('2d');
+    let isDetecting = false;
+    let frameCount = 0;
+    let lastTimestamp = 0;
+    let fps = 0;
+    let frameSkipCounter = 0;
+    let lastPredictions = [];
+    let currentZoom = 1.0;
+    let currentFacingMode = 'environment';
+
+    // عناصر DOM
+    const carCountEl = document.getElementById('carCount');
+    const truckCountEl = document.getElementById('truckCount');
+    const totalCountEl = document.getElementById('totalCount');
+    const fpsCountEl = document.getElementById('fpsCount');
+    const detectionListEl = document.getElementById('detectionList');
+    const zoomLevelEl = document.getElementById('zoomLevel');
+    const startRearCamBtn = document.getElementById('startRearCam');
+    const startFrontCamBtn = document.getElementById('startFrontCam');
+    const uploadVideoBtn = document.getElementById('uploadVideo');
+    const stopDetectionBtn = document.getElementById('stopDetection');
+    const videoInput = document.getElementById('videoInput');
+    const zoomInBtn = document.getElementById('zoomInBtn');
+    const zoomOutBtn = document.getElementById('zoomOutBtn');
+
+    // ==========================================
+    // تطبيق التكبير على الفيديو
+    // ==========================================
+    function applyZoom() {
+        if (!videoElement) return;
+        
+        const zoomValue = currentZoom;
+        const videoContainer = document.querySelector('.video-container');
+        
+        if (zoomValue !== 1.0) {
+            const scale = zoomValue;
+            const translateX = (zoomValue - 1) * 50;
+            const translateY = (zoomValue - 1) * 50;
+            videoElement.style.transform = `scale(${scale}) translate(${translateX}%, ${translateY}%)`;
+            canvas.style.transform = `scale(${scale}) translate(${translateX}%, ${translateY}%)`;
+        } else {
+            videoElement.style.transform = 'scale(1) translate(0, 0)';
+            canvas.style.transform = 'scale(1) translate(0, 0)';
+        }
+        
+        zoomLevelEl.innerText = currentZoom.toFixed(1) + 'x';
     }
 
-    try {
-        if (currentStream) {
-            stopDetection();
+    function zoomIn() {
+        if (currentZoom < 3.0) {
+            currentZoom = Math.min(3.0, currentZoom + 0.2);
+            applyZoom();
+            showToast(`🔍 تكبير: ${currentZoom.toFixed(1)}x`);
+        }
+    }
+
+    function zoomOut() {
+        if (currentZoom > 1.0) {
+            currentZoom = Math.max(1.0, currentZoom - 0.2);
+            applyZoom();
+            showToast(`🔍 تصغير: ${currentZoom.toFixed(1)}x`);
+        }
+    }
+
+    // ==========================================
+    // إشعارات منبثقة
+    // ==========================================
+    function showToast(message) {
+        const existingToast = document.querySelector('.toast');
+        if (existingToast) existingToast.remove();
+        
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        
+        setTimeout(() => toast.remove(), 2000);
+    }
+
+    // ==========================================
+    // تشغيل الكاميرا
+    // ==========================================
+    async function startCamera(facingMode = 'environment') {
+        if (!model) {
+            alert('الرجاء الانتظار حتى يتم تحميل النموذج');
+            return;
         }
 
-        // إعدادات الكاميرا بدقة منخفضة لتخفيف الحمل
-        const constraints = {
-            video: {
-                facingMode: { exact: facingMode },
-                width: { ideal: 640 },   // دقة منخفضة
-                height: { ideal: 480 },  // دقة منخفضة
-                frameRate: { ideal: 15 } // 15 إطار في الثانية بدلاً من 30
-            }
-        };
-
-        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-        videoElement.srcObject = currentStream;
-        await videoElement.play();
-        
-        // Flip canvas للكاميرا الأمامية
-        if (facingMode === 'user') {
-            canvas.style.transform = 'scaleX(-1)';
-        } else {
-            canvas.style.transform = 'scaleX(1)';
-        }
-        
-        isDetecting = true;
-        stopDetectionBtn.disabled = false;
-        startCameraBtn.disabled = true;
-        uploadVideoBtn.disabled = true;
-        switchCameraBtn.disabled = false;
-        
-        frameCount = 0;
-        lastTimestamp = performance.now();
-        detectFrame();
-        
-        // إظهار رسالة للمستخدم
-        detectionListEl.innerHTML = '<div class="loading">📱 تم تقليل دقة الكاميرا لتحسين الأداء</div>';
-        setTimeout(() => {
-            if (isDetecting) updateStats([]);
-        }, 2000);
-        
-    } catch (error) {
-        console.error('خطأ:', error);
-        // محاولة بدون قيود الدقة
         try {
-            currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: facingMode } } });
+            if (currentStream) {
+                stopDetection();
+            }
+
+            currentFacingMode = facingMode;
+            
+            // إعدادات الكاميرا بدقة منخفضة لتحسين الأداء
+            const constraints = {
+                video: {
+                    facingMode: { exact: facingMode },
+                    width: { ideal: SETTINGS.videoWidth },
+                    height: { ideal: SETTINGS.videoHeight },
+                    frameRate: { ideal: SETTINGS.targetFPS }
+                }
+            };
+
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (err) {
+                console.warn('فشل في تحديد الدقة، جاري المحاولة بدون تحديد:', err);
+                currentStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: { exact: facingMode } } 
+                });
+            }
+            
             videoElement.srcObject = currentStream;
             await videoElement.play();
+            
+            // إعادة ضبط التكبير
+            currentZoom = 1.0;
+            applyZoom();
+            
+            // Flip للكاميرا الأمامية
+            if (facingMode === 'user') {
+                videoElement.style.transform = 'scaleX(-1)';
+                canvas.style.transform = 'scaleX(-1)';
+            } else {
+                videoElement.style.transform = 'scaleX(1)';
+                canvas.style.transform =scaleX(1)';
+            }
+            
             isDetecting = true;
+            stopDetectionBtn.disabled = false;
+            startRearCamBtn.disabled = true;
+            startFrontCamBtn.disabled = true;
+            uploadVideoBtn.disabled = true;
+            
+            frameCount = 0;
+            lastTimestamp = performance.now();
             detectFrame();
-        } catch (fallbackError) {
-            alert('لا يمكن الوصول إلى الكاميرا');
+            
+            showToast(facingMode === 'environment' ? '📷 الكاميرا الخلفية تعمل' : '🤳 الكاميرا الأمامية تعمل');
+            
+        } catch (error) {
+            console.error('خطأ:', error);
+            alert('لا يمكن الوصول إلى الكاميرا. تأكد من منح الأذونات.');
         }
     }
-}
+
+    // ==========================================
+    // كشف الإطارات مع تحسين الأداء
+    // ==========================================
+    async function detectFrame() {
+        if (!isDetecting || !videoElement.videoWidth) {
+            requestAnimationFrame(detectFrame);
+            return;
+        }
+
+        // ضبط حجم canvas
+        if (canvas.width !== videoElement.videoWidth) {
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+        }
+
+        frameSkipCounter++;
+        
+        // تخطي بعض الإطارات لتخفيف الحمل
+        if (frameSkipCounter % (SETTINGS.frameSkip + 1) === 0) {
+            // حساب FPS
+            frameCount++;
+            const now = performance.now();
+            if (now - lastTimestamp >= 1000) {
+                fps = frameCount * (SETTINGS.frameSkip + 1);
+                frameCount = 0;
+                lastTimestamp = now;
+                fpsCountEl.innerText = fps;
+            }
+
+            try {
+                const predictions = await model.detect(videoElement);
+                lastPredictions = predictions;
+                drawDetections(predictions);
+                updateStats(predictions);
+            } catch (e) {
+                console.warn('خطأ في الكشف:', e);
+                drawVideoOnly();
+            }
+        } else {
+            // استخدام آخر اكتشاف معروف لتوفير المعالج
+            if (lastPredictions && lastPredictions.length > 0) {
+                drawDetections(lastPredictions);
+            } else {
+                drawVideoOnly();
+            }
+        }
+        
+        requestAnimationFrame(detectFrame);
+    }
+
+    function drawVideoOnly() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+    }
+
+    function drawDetections(predictions) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+        
+        predictions.forEach(prediction => {
+            const [x, y, width, height] = prediction.bbox;
+            const className = prediction.class;
+            const confidence = (prediction.score * 100).toFixed(1);
+            
+            let color = '#00ff00';
+            if (className === 'car') color = '#00b4d8';
+            else if (className === 'truck') color = '#ff6d00';
+            else if (className === 'bus') color = '#ffab40';
+            
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, width, height);
+            
+            ctx.fillStyle = color;
+            ctx.font = 'bold 12px Arial';
+            const text = `${className} ${confidence}%`;
+            const textWidth = ctx.measureText(text).width;
+            ctx.fillRect(x, y - 20, textWidth + 8, 20);
+            
+            ctx.fillStyle = '#fff';
+            ctx.fillText(text, x + 4, y - 6);
+        });
+    }
+
+    function updateStats(predictions) {
+        const vehicles = ['car', 'truck', 'bus', 'motorcycle', 'bicycle'];
+        let carCount = 0;
+        let truckCount = 0;
+        let totalVehicles = 0;
+        let detectionHtml = '';
+        
+        predictions.forEach(pred => {
+            if (vehicles.includes(pred.class)) {
+                totalVehicles++;
+                if (pred.class === 'car') carCount++;
+                if (pred.class === 'truck') truckCount++;
+                
+                detectionHtml += `
+                    <div class="detection-item">
+                        <span class="detection-class">${getIcon(pred.class)} ${pred.class}</span>
+                        <span class="detection-confidence">${(pred.score * 100).toFixed(1)}%</span>
+                    </div>
+                `;
+            }
+        });
+        
+        carCountEl.innerText = carCount;
+        truckCountEl.innerText = truckCount;
+        totalCountEl.innerText = totalVehicles;
+        
+        if (detectionHtml === '') {
+            detectionListEl.innerHTML = '<div class="loading">🔍 لا توجد مركبات مكتشفة</div>';
+        } else {
+            detectionListEl.innerHTML = `
+                <div style="margin-bottom: 8px; color:#00b4d8;">📋 المركبات المكتشفة:</div>
+                ${detectionHtml}
+            `;
+        }
+    }
+
+    function getIcon(className) {
+        const icons = { 'car': '🚗', 'truck': '🚛', 'bus': '🚌', 'motorcycle': '🏍️', 'bicycle': '🚲' };
+        return icons[className] || '🚘';
+    }
+
+    // ==========================================
+    // رفع فيديو
+    // ==========================================
+    function uploadVideo() {
+        videoInput.click();
+    }
+
+    function handleVideoUpload(event) {
+        const file = event.target.files[0];
+        if (file) {
+            if (currentStream) stopDetection();
+            const url = URL.createObjectURL(file);
+            videoElement.srcObject = null;
+            videoElement.src = url;
+            videoElement.load();
+            videoElement.play();
+            
+            isDetecting = true;
+            stopDetectionBtn.disabled = false;
+            startRearCamBtn.disabled = true;
+            startFrontCamBtn.disabled = true;
+            uploadVideoBtn.disabled = true;
+            
+            frameCount = 0;
+            lastTimestamp = performance.now();
+            detectFrame();
+            
+            showToast('🎥 تم تحميل الفيديو بنجاح');
+        }
+    }
+
+    // ==========================================
+    // إيقاف الكشف
+    // ==========================================
+    function stopDetection() {
+        isDetecting = false;
+        
+        if (currentStream) {
+            currentStream.getTracks().forEach(track => track.stop());
+            currentStream = null;
+        }
+        
+        videoElement.srcObject = null;
+        videoElement.src = '';
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        stopDetectionBtn.disabled = true;
+        startRearCamBtn.disabled = false;
+        startFrontCamBtn.disabled = false;
+        uploadVideoBtn.disabled = false;
+        
+        carCountEl.innerText = '0';
+        truckCountEl.innerText = '0';
+        totalCountEl.innerText = '0';
+        fpsCountEl.innerText = '0';
+        detectionListEl.innerHTML = '<div class="loading">⏸️ تم إيقاف الكشف</div>';
+    }
+
+    // ==========================================
+    // تحميل النموذج
+    // ==========================================
+    async function loadModel() {
+        detectionListEl.innerHTML = '<div class="loading">📥 جاري تحميل نموذج الكشف...</div>';
+        try {
+            model = await cocoSsd.load();
+            detectionListEl.innerHTML = '<div class="loading">✅ النموذج جاهز! اختر كاميرا أو ارفع فيديو</div>';
+            showToast('✅ النموذج جاهز للاستخدام');
+        } catch (error) {
+            detectionListEl.innerHTML = `<div class="loading">❌ خطأ في التحميل: ${error.message}</div>`;
+        }
+    }
+
+    // ==========================================
+    // ربط الأحداث
+    // ==========================================
+    startRearCamBtn.addEventListener('click', () => startCamera('environment'));
+    startFrontCamBtn.addEventListener('click', () => startCamera('user'));
+    uploadVideoBtn.addEventListener('click', uploadVideo);
+    stopDetectionBtn.addEventListener('click', stopDetection);
+    videoInput.addEventListener('change', handleVideoUpload);
+    zoomInBtn.addEventListener('click', zoomIn);
+    zoomOutBtn.addEventListener('click', zoomOut);
+
+    // السماح بالتكبير باللمس (Pinch)
+    let initialDistance = 0;
+    document.querySelector('.video-container').addEventListener('touchstart', (e) => {
+        if (e.touches.length === 2) {
+            initialDistance = Math.hypot(
+                e.touches[0].pageX - e.touches[1].pageX,
+                e.touches[0].pageY - e.touches[1].pageY
+            );
+        }
+    });
+    
+    document.querySelector('.video-container').addEventListener('touchmove', (e) => {
+        if (e.touches.length === 2 && initialDistance > 0) {
+            const newDistance = Math.hypot(
+                e.touches[0].pageX - e.touches[1].pageX,
+                e.touches[0].pageY - e.touches[1].pageY
+            );
+            const delta = newDistance / initialDistance;
+            const newZoom = Math.min(3.0, Math.max(1.0, currentZoom * delta));
+            if (newZoom !== currentZoom) {
+                currentZoom = newZoom;
+                applyZoom();
+                zoomLevelEl.innerText = currentZoom.toFixed(1) + 'x';
+            }
+            initialDistance = newDistance;
+            e.preventDefault();
+        }
+    });
+
+    // بدء التحميل
+    loadModel();
+</script>
+</body>
+</html>
