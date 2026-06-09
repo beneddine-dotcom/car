@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>كاشف السيارات - YOLO في المتصفح</title>
     <style>
         * {
@@ -36,7 +36,7 @@
             text-align: center;
             color: #00b4d8;
             margin-bottom: 20px;
-            font-size: 1.8rem;
+            font-size: 1.5rem;
         }
 
         .stats {
@@ -50,19 +50,21 @@
         .stat-card {
             background: rgba(0,0,0,0.5);
             border-radius: 15px;
-            padding: 15px 25px;
+            padding: 10px 15px;
             text-align: center;
             border: 1px solid #00b4d8;
+            flex: 1;
+            min-width: 80px;
         }
 
         .stat-number {
-            font-size: 2rem;
+            font-size: 1.5rem;
             font-weight: bold;
             color: #00e5ff;
         }
 
         .stat-label {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             color: #ccd6f6;
         }
 
@@ -89,7 +91,7 @@
 
         .controls {
             display: flex;
-            gap: 15px;
+            gap: 10px;
             justify-content: center;
             flex-wrap: wrap;
             margin-top: 20px;
@@ -99,9 +101,9 @@
             background: linear-gradient(135deg, #00b4d8, #0077b6);
             color: white;
             border: none;
-            padding: 12px 24px;
+            padding: 10px 20px;
             border-radius: 50px;
-            font-size: 1rem;
+            font-size: 0.9rem;
             cursor: pointer;
             transition: all 0.3s ease;
             font-weight: bold;
@@ -120,6 +122,10 @@
 
         .btn-danger {
             background: linear-gradient(135deg, #ff3b30, #d32f2f);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #00c853, #00e676);
         }
 
         .loading {
@@ -166,6 +172,25 @@
             background: #00b4d8;
             border-radius: 10px;
         }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            .stat-number {
+                font-size: 1.2rem;
+            }
+        }
+
+        .camera-select {
+            background: rgba(0,0,0,0.5);
+            border: 1px solid #00b4d8;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin-right: 10px;
+            font-family: inherit;
+        }
     </style>
 </head>
 <body>
@@ -183,7 +208,7 @@
         </div>
         <div class="stat-card">
             <div class="stat-number" id="totalCount">0</div>
-            <div class="stat-label">📦 إجمالي المركبات</div>
+            <div class="stat-label">📦 الإجمالي</div>
         </div>
         <div class="stat-card">
             <div class="stat-number" id="fpsCount">0</div>
@@ -197,7 +222,11 @@
     </div>
 
     <div class="controls">
-        <button id="startCamera" class="btn-success">📷 تشغيل الكاميرا</button>
+        <select id="cameraSelect" class="camera-select" style="display: none;">
+            <option value="">اختر الكاميرا...</option>
+        </select>
+        <button id="startCamera" class="btn-success">📷 تشغيل الكاميرا الخلفية</button>
+        <button id="switchCamera" style="display: none;">🔄 تبديل الكاميرا</button>
         <button id="uploadVideo" class="btn-primary">🎥 رفع فيديو</button>
         <button id="stopDetection" class="btn-danger" disabled>⏹️ إيقاف</button>
         <input type="file" id="videoInput" accept="video/mp4,video/webm" style="display: none;">
@@ -224,6 +253,7 @@
     let lastTimestamp = 0;
     let frameCount = 0;
     let fps = 0;
+    let currentFacingMode = 'environment'; // 'environment' = خلفية, 'user' = أمامية
 
     // عناصر DOM
     const carCountEl = document.getElementById('carCount');
@@ -232,29 +262,48 @@
     const fpsCountEl = document.getElementById('fpsCount');
     const detectionListEl = document.getElementById('detectionList');
     const startCameraBtn = document.getElementById('startCamera');
+    const switchCameraBtn = document.getElementById('switchCamera');
     const uploadVideoBtn = document.getElementById('uploadVideo');
     const stopDetectionBtn = document.getElementById('stopDetection');
     const videoInput = document.getElementById('videoInput');
+    const cameraSelect = document.getElementById('cameraSelect');
+
+    // قائمة الكاميرات المتاحة
+    let availableCameras = [];
 
     // ==========================================
-    // تحميل نموذج COCO-SSD
+    // الحصول على قائمة الكاميرات المتاحة
     // ==========================================
-    async function loadModel() {
-        detectionListEl.innerHTML = '<div class="loading">📥 جاري تحميل نموذج الكشف... (قد يستغرق 10-20 ثانية)</div>';
+    async function getAvailableCameras() {
         try {
-            model = await cocoSsd.load();
-            detectionListEl.innerHTML = '<div class="loading">✅ النموذج جاهز! اضغط على "تشغيل الكاميرا" أو اختر فيديو</div>';
-            console.log('✅ نموذج COCO-SSD تم تحميله بنجاح');
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(device => device.kind === 'videoinput');
+            availableCameras = videoDevices;
+            
+            if (videoDevices.length > 1) {
+                cameraSelect.style.display = 'inline-block';
+                switchCameraBtn.style.display = 'inline-block';
+                
+                cameraSelect.innerHTML = '<option value="">اختر الكاميرا...</option>';
+                videoDevices.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.textContent = device.label || `كاميرا ${index + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+            }
+            
+            return videoDevices;
         } catch (error) {
-            detectionListEl.innerHTML = `<div class="loading">❌ خطأ في تحميل النموذج: ${error.message}</div>`;
-            console.error('خطأ في تحميل النموذج:', error);
+            console.error('خطأ في الحصول على الكاميرات:', error);
+            return [];
         }
     }
 
     // ==========================================
-    // بدء الكشف من الكاميرا
+    // بدء الكاميرا (خلفية أو أمامية)
     // ==========================================
-    async function startCamera() {
+    async function startCamera(facingMode = 'environment') {
         if (!model) {
             alert('الرجاء الانتظار حتى يتم تحميل النموذج');
             return;
@@ -265,7 +314,98 @@
                 stopDetection();
             }
 
-            currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            // إعدادات الكاميرا - البيئة (الخلفية) هي الافتراضية
+            const constraints = {
+                video: {
+                    facingMode: { exact: facingMode }
+                }
+            };
+
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+            } catch (err) {
+                // إذا فشل تحديد الكاميرا بالضبط، حاول بدون تحديد
+                console.warn('فشل في تحديد الكاميرا بالضبط، جاري المحاولة بدون تحديد:', err);
+                currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            }
+            
+            videoElement.srcObject = currentStream;
+            await videoElement.play();
+            
+            // Flip canvas للكاميرا الأمامية إذا لزم الأمر
+            if (facingMode === 'user') {
+                canvas.style.transform = 'scaleX(-1)';
+            } else {
+                canvas.style.transform = 'scaleX(1)';
+            }
+            
+            isDetecting = true;
+            stopDetectionBtn.disabled = false;
+            startCameraBtn.disabled = true;
+            uploadVideoBtn.disabled = true;
+            switchCameraBtn.disabled = false;
+            
+            frameCount = 0;
+            lastTimestamp = performance.now();
+            detectFrame();
+            
+        } catch (error) {
+            console.error('خطأ في الوصول إلى الكاميرا:', error);
+            let errorMsg = 'لا يمكن الوصول إلى الكاميرا. ';
+            if (error.name === 'OverconstrainedError') {
+                errorMsg += 'الكاميرا الخلفية غير متوفرة على هذا الجهاز. حاول استخدام كاميرا أخرى.';
+            } else {
+                errorMsg += 'تأكد من منح الأذونات.';
+            }
+            alert(errorMsg);
+            
+            // محاولة بدء الكاميرا بدون تحديد الاتجاه
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoElement.srcObject = currentStream;
+                await videoElement.play();
+                isDetecting = true;
+                stopDetectionBtn.disabled = false;
+                startCameraBtn.disabled = true;
+                detectFrame();
+            } catch (fallbackError) {
+                console.error('فشل أيضاً:', fallbackError);
+            }
+        }
+    }
+
+    // ==========================================
+    // تبديل بين الكاميرا الأمامية والخلفية
+    // ==========================================
+    async function switchCamera() {
+        if (currentFacingMode === 'environment') {
+            currentFacingMode = 'user';
+            await startCamera('user');
+        } else {
+            currentFacingMode = 'environment';
+            await startCamera('environment');
+        }
+    }
+
+    // ==========================================
+    // بدء الكاميرا باستخدام كاميرا محددة من القائمة
+    // ==========================================
+    async function startSpecificCamera(deviceId) {
+        if (!model) {
+            alert('الرجاء الانتظار حتى يتم تحميل النموذج');
+            return;
+        }
+
+        try {
+            if (currentStream) {
+                stopDetection();
+            }
+
+            const constraints = {
+                video: { deviceId: { exact: deviceId } }
+            };
+
+            currentStream = await navigator.mediaDevices.getUserMedia(constraints);
             videoElement.srcObject = currentStream;
             await videoElement.play();
             
@@ -277,9 +417,28 @@
             frameCount = 0;
             lastTimestamp = performance.now();
             detectFrame();
+            
         } catch (error) {
-            console.error('خطأ في الوصول إلى الكاميرا:', error);
-            alert('لا يمكن الوصول إلى الكاميرا. تأكد من منح الأذونات.');
+            console.error('خطأ:', error);
+            alert('لا يمكن الوصول إلى الكاميرا المحددة');
+        }
+    }
+
+    // ==========================================
+    // تحميل نموذج COCO-SSD
+    // ==========================================
+    async function loadModel() {
+        detectionListEl.innerHTML = '<div class="loading">📥 جاري تحميل نموذج الكشف... (قد يستغرق 10-20 ثانية)</div>';
+        try {
+            model = await cocoSsd.load();
+            detectionListEl.innerHTML = '<div class="loading">✅ النموذج جاهز! اضغط على "تشغيل الكاميرا الخلفية" أو اختر فيديو</div>';
+            console.log('✅ نموذج COCO-SSD تم تحميله بنجاح');
+            
+            // الحصول على قائمة الكاميرات المتاحة
+            await getAvailableCameras();
+        } catch (error) {
+            detectionListEl.innerHTML = `<div class="loading">❌ خطأ في تحميل النموذج: ${error.message}</div>`;
+            console.error('خطأ في تحميل النموذج:', error);
         }
     }
 
@@ -302,7 +461,7 @@
             fpsCountEl.innerText = fps;
         }
 
-        // ضبط حجم canvas ليتناسب مع الفيديو
+        // ضبط حجم canvas
         if (canvas.width !== videoElement.videoWidth) {
             canvas.width = videoElement.videoWidth;
             canvas.height = videoElement.videoHeight;
@@ -311,7 +470,7 @@
         // تنفيذ الكشف
         const predictions = await model.detect(videoElement);
         
-        // رسم الإطارات والنتائج
+        // رسم الاكتشافات
         drawDetections(predictions);
         
         // تحديث الإحصائيات
@@ -325,19 +484,14 @@
     // رسم الاكتشافات على canvas
     // ==========================================
     function drawDetections(predictions) {
-        // مسح canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
-        // رسم إطار الفيديو على canvas
         ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
         
-        // رسم المربعات والنصوص
         predictions.forEach(prediction => {
             const [x, y, width, height] = prediction.bbox;
             const className = prediction.class;
             const confidence = (prediction.score * 100).toFixed(1);
             
-            // اختيار لون حسب نوع المركبة
             let color = '#00ff00';
             if (className === 'car') color = '#00b4d8';
             else if (className === 'truck') color = '#ff6d00';
@@ -345,19 +499,16 @@
             else if (className === 'motorcycle') color = '#ff3b30';
             else if (className === 'bicycle') color = '#00c853';
             
-            // رسم المربع
             ctx.strokeStyle = color;
             ctx.lineWidth = 3;
             ctx.strokeRect(x, y, width, height);
             
-            // رسم خلفية النص
             ctx.fillStyle = color;
             ctx.font = 'bold 16px Arial';
             const text = `${className} ${confidence}%`;
             const textWidth = ctx.measureText(text).width;
             ctx.fillRect(x, y - 25, textWidth + 10, 25);
             
-            // رسم النص
             ctx.fillStyle = '#fff';
             ctx.fillText(text, x + 5, y - 8);
         });
@@ -436,6 +587,7 @@
             stopDetectionBtn.disabled = false;
             startCameraBtn.disabled = true;
             uploadVideoBtn.disabled = true;
+            switchCameraBtn.disabled = true;
             
             frameCount = 0;
             lastTimestamp = performance.now();
@@ -462,6 +614,8 @@
         stopDetectionBtn.disabled = true;
         startCameraBtn.disabled = false;
         uploadVideoBtn.disabled = false;
+        switchCameraBtn.disabled = true;
+        cameraSelect.style.display = 'none';
         
         carCountEl.innerText = '0';
         truckCountEl.innerText = '0';
@@ -473,10 +627,27 @@
     // ==========================================
     // ربط الأحداث
     // ==========================================
-    startCameraBtn.addEventListener('click', startCamera);
+    startCameraBtn.addEventListener('click', () => startCamera('environment'));
+    switchCameraBtn.addEventListener('click', switchCamera);
     uploadVideoBtn.addEventListener('click', uploadVideo);
     stopDetectionBtn.addEventListener('click', stopDetection);
     videoInput.addEventListener('change', handleVideoUpload);
+    cameraSelect.addEventListener('change', (e) => {
+        if (e.target.value) {
+            startSpecificCamera(e.target.value);
+        }
+    });
+
+    // طلب أذونات الكاميرا مسبقاً للحصول على أسماء الأجهزة
+    async function requestPermissions() {
+        try {
+            await navigator.mediaDevices.getUserMedia({ video: true });
+            await getAvailableCameras();
+        } catch (e) {
+            console.log('تم رفض الأذونات أو الخطأ:', e);
+        }
+    }
+    requestPermissions();
 
     // تحميل النموذج عند بدء الصفحة
     loadModel();
