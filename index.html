@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>كاشف السيارات - YOLO في المتصفح مع تكبير الكاميرا</title>
+    <title>كاشف السيارات - YOLO في المتصفح</title>
     <style>
         * {
             margin: 0;
@@ -76,17 +76,9 @@
             margin-bottom: 20px;
         }
 
-        .video-wrapper {
-            position: relative;
-            width: 100%;
-            overflow: hidden;
-            border-radius: 15px;
-        }
-
         video, canvas {
             width: 100%;
             border-radius: 15px;
-            transition: transform 0.2s ease-out;
         }
 
         canvas {
@@ -95,73 +87,6 @@
             left: 0;
             width: 100%;
             height: 100%;
-        }
-
-        /* أزرار التكبير المصغرة */
-        .zoom-controls-mini {
-            position: absolute;
-            bottom: 15px;
-            right: 15px;
-            display: flex;
-            gap: 8px;
-            z-index: 20;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(8px);
-            padding: 6px 10px;
-            border-radius: 40px;
-            border: 1px solid rgba(0, 180, 216, 0.5);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        .video-container:hover .zoom-controls-mini {
-            opacity: 1;
-        }
-
-        .zoom-btn-mini {
-            background: linear-gradient(135deg, #00b4d8, #0077b6);
-            color: white;
-            border: none;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .zoom-btn-mini:hover {
-            transform: scale(1.1);
-            background: linear-gradient(135deg, #00e5ff, #00b4d8);
-        }
-
-        .zoom-btn-mini:active {
-            transform: scale(0.95);
-        }
-
-        .zoom-reset-mini {
-            background: linear-gradient(135deg, #ff9800, #f57c00);
-        }
-
-        .zoom-level-mini {
-            color: white;
-            font-size: 11px;
-            background: rgba(0, 0, 0, 0.6);
-            padding: 4px 8px;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            font-weight: bold;
-            direction: ltr;
-        }
-
-        .zoom-percent {
-            direction: ltr;
-            font-family: monospace;
         }
 
         .controls {
@@ -255,15 +180,6 @@
             .stat-number {
                 font-size: 1.2rem;
             }
-            .zoom-btn-mini {
-                width: 28px;
-                height: 28px;
-                font-size: 14px;
-            }
-            .zoom-level-mini {
-                font-size: 10px;
-                padding: 3px 6px;
-            }
         }
 
         .camera-select {
@@ -274,30 +190,6 @@
             border-radius: 10px;
             margin-right: 10px;
             font-family: inherit;
-        }
-
-        /* مؤشر التكبير العلوي */
-        .zoom-indicator-top {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(8px);
-            color: #00e5ff;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 11px;
-            z-index: 20;
-            font-weight: bold;
-            direction: ltr;
-            border: 1px solid rgba(0, 180, 216, 0.5);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            pointer-events: none;
-        }
-
-        .video-container:hover .zoom-indicator-top {
-            opacity: 1;
         }
     </style>
 </head>
@@ -324,26 +216,9 @@
         </div>
     </div>
 
-    <div class="video-container" id="videoContainer">
-        <div class="video-wrapper" id="videoWrapper">
-            <video id="video" autoplay playsinline muted></video>
-            <canvas id="canvas"></canvas>
-        </div>
-        
-        <!-- أزرار التكبير المصغرة -->
-        <div class="zoom-controls-mini">
-            <button class="zoom-btn-mini" id="zoomOutMini" title="تصغير">−</button>
-            <span class="zoom-level-mini">
-                <span class="zoom-percent" id="zoomPercent">100</span>%
-            </span>
-            <button class="zoom-btn-mini" id="zoomInMini" title="تكبير">+</button>
-            <button class="zoom-btn-mini zoom-reset-mini" id="zoomResetMini" title="إعادة ضبط">⟳</button>
-        </div>
-        
-        <!-- مؤشر التكبير العلوي -->
-        <div class="zoom-indicator-top" id="zoomIndicator">
-            🔍 <span id="zoomValueTop">1.00</span>x
-        </div>
+    <div class="video-container">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas"></canvas>
     </div>
 
     <div class="controls">
@@ -379,12 +254,6 @@
     let frameCount = 0;
     let fps = 0;
     let currentFacingMode = 'environment'; // 'environment' = خلفية, 'user' = أمامية
-    
-    // متغيرات التكبير
-    let currentZoom = 1;
-    const minZoom = 1;
-    const maxZoom = 3.5;
-    const zoomStep = 0.15;
 
     // عناصر DOM
     const carCountEl = document.getElementById('carCount');
@@ -398,87 +267,10 @@
     const stopDetectionBtn = document.getElementById('stopDetection');
     const videoInput = document.getElementById('videoInput');
     const cameraSelect = document.getElementById('cameraSelect');
-    
-    // عناصر التكبير
-    const zoomPercentSpan = document.getElementById('zoomPercent');
-    const zoomValueTopSpan = document.getElementById('zoomValueTop');
-    const zoomInBtn = document.getElementById('zoomInMini');
-    const zoomOutBtn = document.getElementById('zoomOutMini');
-    const zoomResetBtn = document.getElementById('zoomResetMini');
 
     // قائمة الكاميرات المتاحة
     let availableCameras = [];
 
-    // ==========================================
-    // وظائف التكبير والتصغير
-    // ==========================================
-    function updateZoomDisplay() {
-        const percent = Math.round(currentZoom * 100);
-        zoomPercentSpan.textContent = percent;
-        zoomValueTopSpan.textContent = currentZoom.toFixed(2);
-    }
-    
-    function applyZoom() {
-        // تطبيق التكبير على الفيديو والكانفس مع الحفاظ على المركز
-        const scaleValue = currentZoom;
-        
-        // تعيين التحويل مع الحفاظ على الاتجاه (flip للكاميرا الأمامية)
-        if (currentFacingMode === 'user') {
-            videoElement.style.transform = `scaleX(-1) scale(${scaleValue})`;
-            canvas.style.transform = `scaleX(-1) scale(${scaleValue})`;
-        } else {
-            videoElement.style.transform = `scale(${scaleValue})`;
-            canvas.style.transform = `scale(${scaleValue})`;
-        }
-        
-        videoElement.style.transformOrigin = 'center center';
-        canvas.style.transformOrigin = 'center center';
-        
-        updateZoomDisplay();
-    }
-    
-    function zoomIn() {
-        if (currentZoom + zoomStep <= maxZoom) {
-            currentZoom += zoomStep;
-            applyZoom();
-        } else if (currentZoom < maxZoom) {
-            currentZoom = maxZoom;
-            applyZoom();
-        } else {
-            // تأثير بسيط عند الوصول للحد الأقصى
-            const container = document.getElementById('videoContainer');
-            container.style.transform = 'scale(1.01)';
-            setTimeout(() => { container.style.transform = 'scale(1)'; }, 150);
-        }
-    }
-    
-    function zoomOut() {
-        if (currentZoom - zoomStep >= minZoom) {
-            currentZoom -= zoomStep;
-            applyZoom();
-        } else if (currentZoom > minZoom) {
-            currentZoom = minZoom;
-            applyZoom();
-        }
-    }
-    
-    function resetZoom() {
-        currentZoom = 1;
-        applyZoom();
-    }
-    
-    // التكبير باستخدام عجلة الماوس
-    function handleWheelZoom(e) {
-        if (!isDetecting) return;
-        
-        e.preventDefault();
-        if (e.deltaY < 0) {
-            zoomIn();
-        } else if (e.deltaY > 0) {
-            zoomOut();
-        }
-    }
-    
     // ==========================================
     // الحصول على قائمة الكاميرات المتاحة
     // ==========================================
@@ -522,10 +314,7 @@
                 stopDetection();
             }
 
-            // إعادة ضبط التكبير عند بدء كاميرا جديدة
-            resetZoom();
-            currentFacingMode = facingMode;
-
+            // إعدادات الكاميرا - البيئة (الخلفية) هي الافتراضية
             const constraints = {
                 video: {
                     facingMode: { exact: facingMode }
@@ -535,16 +324,20 @@
             try {
                 currentStream = await navigator.mediaDevices.getUserMedia(constraints);
             } catch (err) {
+                // إذا فشل تحديد الكاميرا بالضبط، حاول بدون تحديد
                 console.warn('فشل في تحديد الكاميرا بالضبط، جاري المحاولة بدون تحديد:', err);
                 currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                currentFacingMode = 'environment';
             }
             
             videoElement.srcObject = currentStream;
             await videoElement.play();
             
-            // تطبيق التكبير مع مراعاة اتجاه الكاميرا
-            applyZoom();
+            // Flip canvas للكاميرا الأمامية إذا لزم الأمر
+            if (facingMode === 'user') {
+                canvas.style.transform = 'scaleX(-1)';
+            } else {
+                canvas.style.transform = 'scaleX(1)';
+            }
             
             isDetecting = true;
             stopDetectionBtn.disabled = false;
@@ -566,13 +359,11 @@
             }
             alert(errorMsg);
             
+            // محاولة بدء الكاميرا بدون تحديد الاتجاه
             try {
                 currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
                 videoElement.srcObject = currentStream;
                 await videoElement.play();
-                resetZoom();
-                currentFacingMode = 'environment';
-                applyZoom();
                 isDetecting = true;
                 stopDetectionBtn.disabled = false;
                 startCameraBtn.disabled = true;
@@ -587,10 +378,11 @@
     // تبديل بين الكاميرا الأمامية والخلفية
     // ==========================================
     async function switchCamera() {
-        resetZoom();
         if (currentFacingMode === 'environment') {
+            currentFacingMode = 'user';
             await startCamera('user');
         } else {
+            currentFacingMode = 'environment';
             await startCamera('environment');
         }
     }
@@ -609,8 +401,6 @@
                 stopDetection();
             }
 
-            resetZoom();
-
             const constraints = {
                 video: { deviceId: { exact: deviceId } }
             };
@@ -618,8 +408,6 @@
             currentStream = await navigator.mediaDevices.getUserMedia(constraints);
             videoElement.srcObject = currentStream;
             await videoElement.play();
-            
-            applyZoom();
             
             isDetecting = true;
             stopDetectionBtn.disabled = false;
@@ -643,9 +431,10 @@
         detectionListEl.innerHTML = '<div class="loading">📥 جاري تحميل نموذج الكشف... (قد يستغرق 10-20 ثانية)</div>';
         try {
             model = await cocoSsd.load();
-            detectionListEl.innerHTML = '<div class="loading">✅ النموذج جاهز! اضغط على "تشغيل الكاميرا الخلفية" أو اختر فيديو<br>💡 نصيحة: استخدم عجلة الماوس للتكبير/التصغير</div>';
+            detectionListEl.innerHTML = '<div class="loading">✅ النموذج جاهز! اضغط على "تشغيل الكاميرا الخلفية" أو اختر فيديو</div>';
             console.log('✅ نموذج COCO-SSD تم تحميله بنجاح');
             
+            // الحصول على قائمة الكاميرات المتاحة
             await getAvailableCameras();
         } catch (error) {
             detectionListEl.innerHTML = `<div class="loading">❌ خطأ في تحميل النموذج: ${error.message}</div>`;
@@ -662,6 +451,7 @@
             return;
         }
 
+        // حساب FPS
         frameCount++;
         const now = performance.now();
         if (now - lastTimestamp >= 1000) {
@@ -671,15 +461,22 @@
             fpsCountEl.innerText = fps;
         }
 
+        // ضبط حجم canvas
         if (canvas.width !== videoElement.videoWidth) {
             canvas.width = videoElement.videoWidth;
             canvas.height = videoElement.videoHeight;
         }
 
+        // تنفيذ الكشف
         const predictions = await model.detect(videoElement);
+        
+        // رسم الاكتشافات
         drawDetections(predictions);
+        
+        // تحديث الإحصائيات
         updateStats(predictions);
         
+        // متابعة الكشف
         requestAnimationFrame(detectFrame);
     }
 
@@ -780,7 +577,6 @@
             if (currentStream) {
                 stopDetection();
             }
-            resetZoom();
             const url = URL.createObjectURL(file);
             videoElement.srcObject = null;
             videoElement.src = url;
@@ -841,15 +637,6 @@
             startSpecificCamera(e.target.value);
         }
     });
-    
-    // أحداث التكبير
-    zoomInBtn.addEventListener('click', zoomIn);
-    zoomOutBtn.addEventListener('click', zoomOut);
-    zoomResetBtn.addEventListener('click', resetZoom);
-    
-    // تكبير بعجلة الماوس
-    const videoContainer = document.getElementById('videoContainer');
-    videoContainer.addEventListener('wheel', handleWheelZoom, { passive: false });
 
     // طلب أذونات الكاميرا مسبقاً للحصول على أسماء الأجهزة
     async function requestPermissions() {
